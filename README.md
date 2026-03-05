@@ -142,3 +142,29 @@ type OA
 
   Teniendo en cuenta el rule que definiriamos de @auth en nuestra api, estamos asegurando seguridad en nuestros accesos. Como sabemos, todo el frontend es publico, se puede hacer inyecciones, trazar requests, modificar queries y hacer intersecciones antes de mandar una petticion. Tambien se pueden llamar directamente a nuestro endpoint dado por appsync usando clientes http, esto es muy vulnerable a ataques por gente maliciosa que quiere obtener nuestros datos.
   Con nuestras reglas en AppSync, la validaciones extras, y nuestras claims en nuestro contexto de Cognito, estariamos restringiendo acceso a solo personas autorizadas.
+
+
+### EJERCICIO 3
+
+
+## 1. ¿Qué haría si hay 100.000 OA por país?
+
+ Si nuestro sistema de UMMIA logra tener muchos registros por pais, buscaria la forma de optimizar nuestros accesos a datos, ya como explique en los puntos anteriores, nuestras claves de particion nos serian muy utiles para hacer indexaciones de estos filtros frecuentes. Ademas usaria estrategias de caching tanto en el frontend (react query), como el backend usando las estrategias que AppSYnc nos provea (y tambien, porque no Redis), la idea es evitar latenicas cuando hay muchisimos datos.
+ 
+ La paginacion ya es existente, y tambien nos proporciona estrategias de bajar la carga.
+ 
+## 2. ¿Cómo optimizaría consultas en DynamoDB?
+
+Pues Dynamo es un db orientada a indices, por lo que optimizando nuestras claves primarias y secundarias, podriamos mejorar  nuestras consultas. Ampliar nuestros GSI's tambien nos permitiran hacer consultas por otras dimensiones o atributos.
+
+## 3. ¿Dónde implementaría caching?
+
+Lo implementaria tanto en el frontend con react-query, en el backend usando AppSync esto para nuestras consultas que cambian muy poco. Tambien como frontend tendria en cuenta nuestros caching proporcionados por la CDN (cloudfront por ejemplo )
+
+## 4. ¿Qué herramientas usaría para detectar re-renders innecesarios?
+
+Actualmente uso react-scan, es una herramienta que me ayuda a trazar como funcionan los renders de cada componente al momento de debuguear, me parece extremadamente util y un MUST como ingeniero React.
+
+Tambien podria usar el Profiler que ya las React Devtools me proporcionan, esto me ayuda a ver como se distribuyen los renders y donde hay posibles problemas de rendimiento.
+
+Para optimizar re-renders innecesarios, tal como realice el ejercicio 1, usaria memo, useCallback y useMemo para evitar rerenders costosos y operaciones no necesarias. Ademas las nuevas versiones de React traen su propio React Compiler al momento de hacer la transpilacion del codigo, evitando usar estos hooks manualmente.
