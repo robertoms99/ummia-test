@@ -110,6 +110,31 @@ headers: {
 ### EJERCICIO 2 
 
 1. Propuesta de Single Table Design para OA:
-  Sin duda alguna usaria nuestros Tenants como clave conjunta seria lo mas eficiente, ya que es el primer filtro aplicable en nuestro sistema, nuestros objetivos de aprendizajes los creamos por paises inicialmente. Entonces podriamos crear algo como : TENANT#CL o TENANT#CO.
-  Como clave secundaria usaria el codigo y la version de nuestro OA, esta es nuestra segunda condicion para mostrar listados, que nuestros OA sean activos y ordenados por version. Ej: OA#MAT-1B-01#1
-  Para obtener nuestra ultima version activa, usaria una GSI que dependiera del codigo y version GSI1PK = PAIS#CODIGO , GSI1SK = VERSION
+  Sin duda alguna usaria nuestros Tenants como clave primaria, seria lo mas eficiente, ya que es el primer filtro aplicable en nuestro sistema, y las consultas a nuestros objetivos de aprendizajes los creamos por paises inicialmente. Entonces podriamos crear algo como : TENANT#CL o TENANT#CO. Con esto ya evitariamos que se mezclen los OA entre paises.
+  
+  Como clave secundaria usaria el codigo y la version de nuestro OA, esta es nuestra segunda condicion para mostrar listados, que nuestros OA sean activos y ordenados por version. Entonces agrupar y cumplir la condicion del ultimo OA por codigo seria cumplido facilmente.Ej: OA#MAT-1B-01#1
+  
+  Para obtener nuestra ultima version por codigo, usaria una GSI que dependiera del codigo y version, algo asi como: GSI1PK = CL#MAT-1B-01 y GSI1SK = 2
+
+2. Estrategia de versionamiento en DynamoDB:
+  Estas vesiones las estamos manejando cuando se crea un nuevo registro por cada version de nuestros OA's. Entonces luego procederiamos a consultar la maxima version existente para ese codigo del tenant que necesitemos, incrementamos en nuestra logica la version y usamos esa version nueva con el mismo codigo, de esa manera tan sencilla. Podriamos entonces tener lo que llamariamos un historial de versiones para cada OA.
+
+3. Cómo restringir acceso por país usando AppSync (@auth rules)
+   En nuestros schemas de AppSync (Graphql) podriamos crear un @auth rules para hacer restriccinoes tanto por pais (que podriamos obtenerlos de nuestros claims de cognito), y que solo el owner sea el que tenga permitido estas operaciones, digamos que podriamos hacerlo tal como : 
+```    
+type OA
+    @model
+    @auth(rules: [
+      {
+        allow: owner,
+        ownerField: "pais",
+        identityClaim: "custom:pais"
+      }
+    ])```
+
+
+
+4. Riesgos de controlar acceso solo en frontend
+
+  Teniendo en cuenta el rule que definiriamos de @auth en nuestra api, estamos asegurando seguridad en nuestros accesos. Como sabemos, todo el frontend es publico, se puede hacer inyecciones, trazar requests, modificar queries y hacer intersecciones antes de mandar una petticion. Tambien se pueden llamar directamente a nuestro endpoint dado por appsync usando clientes http, esto es muy vulnerable a ataques por gente maliciosa que quiere obtener nuestros datos.
+  Con nuestras reglas en AppSync, la validaciones extras, y nuestras claims en nuestro contexto de Cognito, estariamos restringiendo acceso a solo personas autorizadas.
