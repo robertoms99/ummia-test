@@ -1,5 +1,3 @@
-// src/mocks/handlers.ts
-// MSW handlers para simular AppSync GraphQL
 import { graphql, HttpResponse } from 'msw';
 import { listOA, createOA } from './mockOA';
 import type { CreateOAInput } from './mockOA';
@@ -8,14 +6,12 @@ import type { CreateOAInput } from './mockOA';
 const GRAPHQL_ENDPOINT = 'https://mock-appsync.amazonaws.com/graphql';
 
 export const handlers = [
-  // Handler para query ListOA
   graphql.query('ListOA', async ({ variables }) => {
     try {
       const { pais, nextToken } = variables as { pais: string; nextToken?: string | null };
-      
-      // Simular la llamada a la "API"
+
       const result = await listOA(pais, nextToken || null);
-      
+
       return HttpResponse.json({
         data: {
           listOA: result,
@@ -36,14 +32,12 @@ export const handlers = [
     }
   }),
 
-  // Handler para mutation CreateOA
   graphql.mutation('CreateOA', async ({ variables }) => {
     try {
       const { input } = variables as { input: CreateOAInput };
-      
-      // Simular la llamada a la "API"
+
       const result = await createOA(input);
-      
+
       return HttpResponse.json({
         data: {
           createOA: result,

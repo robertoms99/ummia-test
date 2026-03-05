@@ -179,20 +179,33 @@ let store: OA[] = [...PAGES.PAGE_1.items, ...PAGES.PAGE_2.items];
  * - Filtra por pais
  * - Devuelve páginas (PAGE_1 / PAGE_2)
  * - Agrega latencia artificial
+ * - USA EL STORE DINÁMICO para incluir items creados
  */
-export async function listOA(pais: string, nextToken: string | null = "PAGE_1"): Promise<ListOAResult> {
+export async function listOA(pais: string, nextToken: string | null = null): Promise<ListOAResult> {
   await sleep(450);
 
-  const token = nextToken ?? "PAGE_1";
-  const page = PAGES[token];
+  // Tamaño de página
+  const PAGE_SIZE = 5;
 
-  if (!page) {
-    // token inválido: en la vida real vendría un error desde AppSync
-    throw new Error("Invalid nextToken");
+  // Filtrar por país desde el store dinámico
+  const filteredItems = store.filter((x) => x.pais === pais);
+
+  // Determinar offset según nextToken
+  let offset = 0;
+  if (nextToken === "PAGE_2") {
+    offset = PAGE_SIZE;
+  } else if (nextToken && nextToken.startsWith("OFFSET_")) {
+    offset = parseInt(nextToken.replace("OFFSET_", ""), 10);
   }
 
-  const items = page.items.filter((x) => x.pais === pais);
-  return { items, nextToken: page.nextToken };
+  // Obtener slice de items
+  const items = filteredItems.slice(offset, offset + PAGE_SIZE);
+
+  // Calcular siguiente token
+  const hasMore = filteredItems.length > offset + PAGE_SIZE;
+  const nextPageToken = hasMore ? `OFFSET_${offset + PAGE_SIZE}` : null;
+
+  return { items, nextToken: nextPageToken };
 }
 
 /**

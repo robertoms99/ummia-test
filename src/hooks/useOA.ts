@@ -1,45 +1,137 @@
-// src/hooks/useOA.ts
-// Hook personalizado para manejar Objetivos de Aprendizaje con paginación acumulativa
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { graphqlRequest, LIST_OA_QUERY, CREATE_OA_MUTATION } from '@/lib/graphql-client';
-import type {
-  OA,
-  ListOAResult,
-  CreateOAInput,
-  ListOAVariables,
-  CreateOAVariables,
-} from '@/types/oa.types';
+import { useMemo, useState } from 'react';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { fetchOAList, createOA as createOAApi } from '@/lib/api';
+import type { OA, CreateOAInput } from '@/types/oa.types';
 
 type UseOAFilters = {
   asignatura?: string;
   nivel?: string;
 };
 
-export function useOA(pais: string) {
-  const [allItems, setAllItems] = useState<OA[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [nextToken, setNextToken] = useState<string | null>(null);
-  const [filters, setFilters] = useState<UseOAFilters>({});
-  
-  const isFetchingRef = useRef(false);
+/**
+ * Query keys para React Query
+ */
+export const oaKeys = {
+  all: ['oa'] as const,
+  lists: () => [...oaKeys.all, 'list'] as const,
+  list: (pais: string) => [...oaKeys.lists(), pais] as const,
+};
 
-  // Resetear cuando cambia el país
-  useEffect(() => {
-    setAllItems([]);
-    setNextToken(null);
-    setFilters({});
-    setError(null);
-    isFetchingRef.current = false;
-  }, [pais]);
+export function useOA(pais: string) {
+  const queryClient = useQueryClient();
+  const [filters, setFilters] = useState<UseOAFilters>({});
+
+  /**
+   * useInfiniteQuery para paginación acumulativa
+   */
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: oaKeys.list(pais),
+    queryFn: ({ pageParam }) => fetchOAList(pais, pageParam),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextToken ?? undefined,
+    // Opciones específicas
+    staleTime: 1000 * 60 * 5, // 5 minutos
+    gcTime: 1000 * 60 * 10, // 10 minutos
+  });
+
+  /**
+   * useMutation para crear OA con optimistic updates
+   */
+  const createMutation = useMutation({
+    mutationFn: createOAApi,
+    onMutate: async (newOA: CreateOAInput) => {
+      await queryClient.cancelQueries({ queryKey: oaKeys.list(pais) });
+
+      // Snapshot del estado previo
+      const previousData = queryClient.getQueryData(oaKeys.list(pais));
+
+      // Optimistic update: agregar el nuevo OA temporalmente
+      const optimisticOA: OA = {
+        id: `temp-${Date.now()}`,
+        codigo: newOA.codigo,
+        descripcion: newOA.descripcion,
+        nivel: newOA.nivel,
+        asignatura: newOA.asignatura,
+        pais: newOA.pais,
+        estado: newOA.estado || 'ACTIVO',
+        version: 1,
+        updatedAt: new Date().toISOString(),
+        createdBy: newOA.createdBy || 'current_user',
+      };
+
+      queryClient.setQueryData(oaKeys.list(pais), (old: any) => {
+        if (!old) return old;
+
+        return {
+          ...old,
+          pages: old.pages.map((page: any, index: number) => {
+            // Agregar al principio de la primera página
+            if (index === 0) {
+              return {
+                ...page,
+                items: [optimisticOA, ...page.items],
+              };
+            }
+            return page;
+          }),
+        };
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _newOA, context) => {
+      // Revertir al estado anterior en caso de error
+      if (context?.previousData) {
+        queryClient.setQueryData(oaKeys.list(pais), context.previousData);
+      }
+    },
+    onSuccess: (createdOA) => {
+      // Reemplazar el OA optimista con el real del servidor
+      queryClient.setQueryData(oaKeys.list(pais), (old: any) => {
+        if (!old) return old;
+
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            items: page.items.map((item: OA) =>
+              item.id.startsWith('temp-') ? createdOA : item
+            ),
+          })),
+        };
+      });
+
+      // NO invalidamos inmediatamente - el setQueryData ya actualizó con datos reales
+      // Si queremos refetch después de un tiempo, podemos usar:
+      // setTimeout(() => {
+      //   queryClient.invalidateQueries({ queryKey: oaKeys.list(pais) });
+      // }, 1000);
+    },
+  });
+
+  /**
+   * Todos los items acumulados de todas las páginas
+   */
+  const allItems = useMemo(() => {
+    if (!data?.pages) return [];
+    return data.pages.flatMap((page) => page.items);
+  }, [data?.pages]);
 
   /**
    * Obtener solo la última versión ACTIVA por código
    */
-  const getLatestActiveVersions = useCallback((items: OA[]): OA[] => {
+  const getLatestActiveVersions = useMemo(() => {
     const grouped = new Map<string, OA[]>();
 
-    items.forEach((item) => {
+    allItems.forEach((item) => {
       const existing = grouped.get(item.codigo) || [];
       grouped.set(item.codigo, [...existing, item]);
     });
@@ -56,13 +148,13 @@ export function useOA(pais: string) {
     });
 
     return result;
-  }, []);
+  }, [allItems]);
 
   /**
    * Items filtrados (valor derivado)
    */
   const items = useMemo(() => {
-    let result = getLatestActiveVersions(allItems);
+    let result = getLatestActiveVersions;
 
     if (filters.asignatura) {
       result = result.filter((item) => item.asignatura === filters.asignatura);
@@ -73,156 +165,73 @@ export function useOA(pais: string) {
     }
 
     return result;
-  }, [allItems, filters, getLatestActiveVersions]);
+  }, [getLatestActiveVersions, filters]);
 
   /**
-   * Opciones para filtros
+   * Opciones para filtros (basado en últimas versiones activas)
    */
   const filterOptions = useMemo(() => {
-    const latestActive = getLatestActiveVersions(allItems);
-    
     return {
-      asignaturas: Array.from(new Set(latestActive.map((item) => item.asignatura))).sort(),
-      niveles: Array.from(new Set(latestActive.map((item) => item.nivel))).sort(),
+      asignaturas: Array.from(
+        new Set(getLatestActiveVersions.map((item) => item.asignatura))
+      ).sort(),
+      niveles: Array.from(
+        new Set(getLatestActiveVersions.map((item) => item.nivel))
+      ).sort(),
     };
-  }, [allItems, getLatestActiveVersions]);
+  }, [getLatestActiveVersions]);
 
   /**
-   * Cargar datos
+   * Función para crear OA
    */
-  const load = useCallback(async () => {
-    if (isFetchingRef.current) return;
-
-    isFetchingRef.current = true;
-    setLoading(true);
-    setError(null);
-    setAllItems([]);
-    setNextToken(null);
-
-    try {
-      const response = await graphqlRequest<{ listOA: ListOAResult }>(
-        LIST_OA_QUERY,
-        { pais, nextToken: null }
-      );
-
-      setAllItems(response.listOA.items);
-      setNextToken(response.listOA.nextToken);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar datos');
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
+  const createOA = async (input: CreateOAInput) => {
+    if (input.pais !== pais) {
+      throw new Error('El país del OA no coincide con el país seleccionado');
     }
-  }, [pais]);
-
-  /**
-   * Cargar más (paginación)
-   */
-  const loadMore = useCallback(async () => {
-    if (isFetchingRef.current || !nextToken || loading) return;
-
-    isFetchingRef.current = true;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const response = await graphqlRequest<{ listOA: ListOAResult }>(
-        LIST_OA_QUERY,
-        { pais, nextToken }
-      );
-
-      setAllItems((prev) => [...prev, ...response.listOA.items]);
-      setNextToken(response.listOA.nextToken);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error al cargar más datos');
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
-    }
-  }, [pais, nextToken, loading]);
-
-  /**
-   * Refetch
-   */
-  const refetch = useCallback(() => {
-    load();
-  }, [load]);
-
-  /**
-   * Reset
-   */
-  const reset = useCallback(() => {
-    setAllItems([]);
-    setNextToken(null);
-    setFilters({});
-    setError(null);
-    setLoading(false);
-    isFetchingRef.current = false;
-  }, []);
-
-  /**
-   * Crear OA con optimistic update
-   */
-  const createOA = useCallback(
-    async (input: CreateOAInput) => {
-      if (input.pais !== pais) {
-        throw new Error('El país del OA no coincide con el país seleccionado');
-      }
-
-      const optimisticOA: OA = {
-        id: `temp-${Date.now()}`,
-        codigo: input.codigo,
-        descripcion: input.descripcion,
-        nivel: input.nivel,
-        asignatura: input.asignatura,
-        pais: input.pais,
-        estado: input.estado || 'ACTIVO',
-        version: 1,
-        updatedAt: new Date().toISOString(),
-        createdBy: input.createdBy || 'current_user',
-      };
-
-      setAllItems((prev) => [optimisticOA, ...prev]);
-
-      try {
-        const response = await graphqlRequest<{ createOA: OA }>(
-          CREATE_OA_MUTATION,
-          { input }
-        );
-
-        setAllItems((prev) =>
-          prev.map((item) => (item.id === optimisticOA.id ? response.createOA : item))
-        );
-
-        return response.createOA;
-      } catch (err) {
-        setAllItems((prev) => prev.filter((item) => item.id !== optimisticOA.id));
-        throw err;
-      }
-    },
-    [pais]
-  );
+    return createMutation.mutateAsync(input);
+  };
 
   /**
    * Actualizar filtros
    */
-  const updateFilters = useCallback((newFilters: UseOAFilters) => {
+  const updateFilters = (newFilters: UseOAFilters) => {
     setFilters(newFilters);
-  }, []);
+  };
+
+  /**
+   * Reset (limpiar cache y filtros)
+   */
+  const reset = () => {
+    setFilters({});
+    queryClient.removeQueries({ queryKey: oaKeys.list(pais) });
+  };
 
   return {
+    // Datos
     items,
     allItems,
-    loading,
-    error,
-    hasMore: nextToken !== null,
-    load,
-    loadMore,
+
+    // Estados
+    loading: isLoading,
+    loadingMore: isFetchingNextPage,
+    error: error ? (error as Error).message : null,
+
+    // Paginación
+    hasMore: hasNextPage ?? false,
+    loadMore: fetchNextPage,
+
+    // Acciones
     refetch,
     reset,
     createOA,
+
+    // Filtros
     filters,
     updateFilters,
     filterOptions,
+
+    // Estados de mutación
+    isCreating: createMutation.isPending,
+    createError: createMutation.error?.message,
   };
 }

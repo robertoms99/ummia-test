@@ -13,19 +13,6 @@ Aplicación React + TypeScript para gestionar Objetivos de Aprendizaje (OA) en u
 
 ## 📦 Instalación Rápida
 
-### Opción 1: Script automático (recomendado)
-
-```bash
-./setup.sh
-```
-
-Este script:
-1. Detecta tu gestor de paquetes (pnpm/npm/yarn)
-2. Instala todas las dependencias
-3. Configura Mock Service Worker
-
-### Opción 2: Manual
-
 ```bash
 # 1. Instalar dependencias
 pnpm install  # o npm install / yarn install
@@ -52,7 +39,7 @@ pnpm preview
 
 La aplicación estará disponible en `http://localhost:5173`
 
-## 🎯 Funcionalidades Implementadas (Ejercicio 1)
+## 🎯 Funcionalidades Implementadas 
 
 ### 1. Vista de Listado de OA
 
@@ -82,54 +69,17 @@ La aplicación estará disponible en `http://localhost:5173`
 - ✅ Filtros dinámicos por asignatura y nivel
 - ✅ Manejo de optimistic updates
 
-## 🏗️ Arquitectura
-
-```
-src/
-├── components/          # Componentes React
-│   ├── OAList.tsx      # Lista con filtros y paginación
-│   └── OAForm.tsx      # Formulario de creación
-├── hooks/              # Custom hooks
-│   └── useOA.ts        # Hook principal con lógica de negocio
-├── lib/                # Utilidades
-│   └── graphql-client.ts # Cliente GraphQL
-├── mocks/              # Mock Service Worker
-│   ├── mockOA.ts       # Datos mock
-│   ├── handlers.ts     # Handlers GraphQL de MSW
-│   └── browser.ts      # Setup de MSW para browser
-├── schemas/            # Esquemas de validación
-│   └── oa.schema.ts    # Zod schemas
-├── types/              # Tipos TypeScript
-│   └── oa.types.ts     # Tipos de OA
-├── App.tsx             # Componente principal
-├── main.tsx            # Entry point con MSW
-└── index.css           # Estilos globales + Tailwind
-```
 
 ## 🧪 Casos Edge Cubiertos
 
 - ✅ Múltiples versiones del mismo código (v1, v2, v3)
 - ✅ Estados mezclados (ACTIVO/INACTIVO)
-- ✅ Registro de distintos países (multi-tenant)
+- ✅ Registro de distintos países (multi-tenant), por ahora tenemos Chile y Colombia
 - ✅ Paginación en 2 páginas con nextToken
 - ✅ Versión más alta INACTIVA (muestra última ACTIVA disponible)
 - ✅ Filtros sin resultados
 
 ## 🎨 Decisiones de Diseño
-
-### Performance
-
-1. **Memoización agresiva**: Componentes con `memo()`, callbacks con `useCallback()`, valores derivados con `useMemo()`
-2. **Ref para prevenir dobles llamadas**: `isFetchingRef` evita race conditions
-3. **Paginación acumulativa**: Items se acumulan sin recargar páginas anteriores
-4. **Optimistic updates**: UI responde inmediatamente, revierte en error
-
-### Experiencia de Usuario
-
-1. **Loading states inline**: No bloquea la UI completa
-2. **Mensajes contextuales**: Errores y estados vacíos con guía clara
-3. **Feedback inmediato**: Success messages, loading spinners
-4. **Filtros persistentes**: Se mantienen al cargar más páginas
 
 ### Arquitectura GraphQL con MSW
 
@@ -157,27 +107,9 @@ headers: {
 }
 ```
 
-## 📊 Criterios de Evaluación Cubiertos
+### EJERCICIO 2 
 
-### Implementación React (40 pts)
-- ✅ Código limpio y modular
-- ✅ Manejo correcto async/errores
-- ✅ Paginación y acumulación correcta
-- ✅ Optimistic update bien resuelto
-
-### Hook y Performance (15 pts)
-- ✅ Diseño correcto del hook
-- ✅ Control de re-renders
-- ✅ Manejo de estado complejo
-
-## 📝 Notas Técnicas
-
-- El mock simula AppSync GraphQL con MSW v2
-- Se respeta el contrato de datos especificado
-- Solo se muestran versiones ACTIVAS
-- Multi-tenant: filtra por país correctamente
-- Validaciones del lado del cliente (en producción también debe validarse en backend)
-
-## 🙋 Autor
-
-Prueba técnica para TCTP - Proyecto UMMIA
+1. Propuesta de Single Table Design para OA:
+  Sin duda alguna usaria nuestros Tenants como clave conjunta seria lo mas eficiente, ya que es el primer filtro aplicable en nuestro sistema, nuestros objetivos de aprendizajes los creamos por paises inicialmente. Entonces podriamos crear algo como : TENANT#CL o TENANT#CO.
+  Como clave secundaria usaria el codigo y la version de nuestro OA, esta es nuestra segunda condicion para mostrar listados, que nuestros OA sean activos y ordenados por version. Ej: OA#MAT-1B-01#1
+  Para obtener nuestra ultima version activa, usaria una GSI que dependiera del codigo y version GSI1PK = PAIS#CODIGO , GSI1SK = VERSION

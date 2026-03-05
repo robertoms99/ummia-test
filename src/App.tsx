@@ -1,6 +1,4 @@
-// src/App.tsx
-// Aplicación principal: integración de lista y formulario de OA
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useOA } from './hooks/useOA';
 import { OAList } from './components/OAList';
 import { OAForm } from './components/OAForm';
@@ -18,21 +16,15 @@ function App() {
   const {
     items,
     loading,
+    loadingMore,
     error,
     hasMore,
-    load,
     loadMore,
     createOA,
     filters,
     updateFilters,
     filterOptions,
   } = useOA(paisSeleccionado);
-
-  // Cargar datos al montar o cambiar país
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paisSeleccionado]); // Solo cuando cambie el país
 
   const handleCreateOA = async (data: CreateOAInput) => {
     await createOA({
@@ -140,6 +132,7 @@ function App() {
           <OAList
             items={items}
             loading={loading}
+            loadingMore={loadingMore}
             error={error}
             hasMore={hasMore}
             onLoadMore={loadMore}

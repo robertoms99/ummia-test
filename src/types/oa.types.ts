@@ -1,5 +1,4 @@
-// src/types/oa.types.ts
-// Tipos compartidos para Objetivos de Aprendizaje
+// Tipos compartidos para Objetivos de Aprendizaje. En el entorno real podriamos usar un generador de tipos para GraphQL en base a los schemas remotos de AppSync
 
 export type OAEstado = "ACTIVO" | "INACTIVO";
 

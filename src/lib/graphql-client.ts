@@ -1,9 +1,7 @@
-// src/lib/graphql-client.ts
-// Cliente GraphQL simple para comunicarse con el endpoint (mockeado con MSW)
 import { GRAPHQL_ENDPOINT } from '@/mocks/handlers';
 import type { GraphQLResponse } from '@/types/oa.types';
 
-export async function graphqlRequest<TData = any, TVariables = any>(
+export async function graphqlRequest<TData = unknown, TVariables = unknown>(
   query: string,
   variables?: TVariables
 ): Promise<TData> {
@@ -31,7 +29,6 @@ export async function graphqlRequest<TData = any, TVariables = any>(
   return json.data;
 }
 
-// Queries GraphQL
 export const LIST_OA_QUERY = `
   query ListOA($pais: String!, $nextToken: String) {
     listOA(pais: $pais, nextToken: $nextToken) {

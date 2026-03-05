@@ -1,5 +1,3 @@
-// src/components/OAForm.tsx
-// Formulario de creación de OA con validaciones robustas y optimistic updates
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,10 +39,10 @@ export function OAForm({ pais, onSubmit, onSuccess }: OAFormProps) {
       await onSubmit(data);
       setSubmitSuccess(true);
       reset();
-      
+
       // Ocultar mensaje de éxito después de 3 segundos
       setTimeout(() => setSubmitSuccess(false), 3000);
-      
+
       onSuccess?.();
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Error al crear OA');

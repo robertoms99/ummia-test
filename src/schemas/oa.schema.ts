@@ -1,4 +1,3 @@
-// src/schemas/oa.schema.ts
 // Esquemas de validación Zod para OA
 import { z } from 'zod';
 
